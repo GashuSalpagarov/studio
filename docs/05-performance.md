@@ -1,7 +1,7 @@
-# 05. Производительность и mobile-fallback
+# 05. Производительность и mobile-версия
 
 ## TL;DR
-Цели: 60 FPS на 4K-десктопе при DPR cap=2; LCP < 2.5s, INP < 200ms, CLS < 0.1. На мобильных 3D полностью отключается — отдаётся статичный fallback. Триггеры отключения: `(max-width: 768px)`, `prefers-reduced-motion: reduce`, `Save-Data`, GPU tier ≤ 1. Бюджеты ассетов жёсткие: GLB < 5 MB total, KTX2 текстуры < 2 MB total, без HDR > 1 MB. Draw calls < 150.
+Цели: 60 FPS на 4K-десктопе при DPR cap=2; LCP < 2.5s, INP < 200ms, CLS < 0.1. На мобильных 3D отключается — но **сценарий и анимации сохраняются** в упрощённом виде: Lenis + GSAP + SVG-линия + CSS-инверсия + infinite loop. Триггеры отключения Three.js: `(max-width: 768px)`, `Save-Data`, GPU tier ≤ 1. `prefers-reduced-motion: reduce` — отдельный жёсткий выключатель: статичная версия, без loop'а, без линии. Бюджеты ассетов жёсткие: GLB < 5 MB total, KTX2 текстуры < 2 MB total. Draw calls < 150.
 
 ## Десктоп-цели
 
@@ -29,46 +29,62 @@ R3F: `<Canvas dpr={[1, 2]} performance={{ min: 0.5 }}>` + `<PerformanceMonitor>`
 />
 ```
 
-При трёх флипфлопах — отключаем Bloom/CA/radial-blur и оставляем только базовый рендер.
+При трёх флипфлопах — отключаем Bloom/CA/локальные post-effects и оставляем базовый рендер.
 
-## Мобильный fallback
+## Мобильная версия (упрощённая, не статичный poster)
 
-3D на мобильных **отключается полностью**. Никакого «упрощённого WebGL» — только статичные изображения и CSS.
+Главное отличие от прежнего плана: **на мобиле сценарий не отключается**. Сохраняются:
 
-### Триггеры детекта
+- Lenis (smooth scroll + `infinite: true` для loop'а);
+- GSAP + ScrollTrigger (master timeline по 5 сценам);
+- SVG-линия с `stroke-dashoffset` вместо WebGL-линии;
+- CSS-инверсия на CTA через clip-path overlay + `@property` tokens;
+- Кольцо прогресса (SVG, идентичный десктопу);
+- Per-scene route transitions (упрощённые, на DOM/CSS).
 
-Сайт переключается в fallback, если выполнено хотя бы одно условие:
+Отключается / заменяется только:
+
+- Three.js / WebGL сцена линии — заменяется SVG-вариантом;
+- Опциональные wormhole-wipe эффекты — заменяются CSS-tween'ами (clip-path, mask);
+- Post-FX — отсутствуют;
+- Тяжёлые декорации (particle streaks вокруг точки) — отсутствуют либо упрощены до CSS-pseudo-элементов.
+
+### Триггеры детекта (отключение Three.js)
+
+`<Canvas>` не монтируется, если выполнено хотя бы одно условие:
 
 | Условие | Проверка |
 |---|---|
 | Малый viewport | `window.matchMedia('(max-width: 768px)').matches` |
 | Mobile UA | `navigator.userAgentData?.mobile === true` (с UA-detect фолбэком) |
-| Reduced motion | `window.matchMedia('(prefers-reduced-motion: reduce)').matches` |
 | Save-Data | `navigator.connection?.saveData === true` |
 | Низкий GPU | `detect-gpu` → `tier <= 1` или `gpu === undefined` |
 
-Решение принимается **до** монтирования `<Canvas>`. Если хоть один триггер сработал — рендерится только DOM-вариант страницы.
+Решение принимается **до** монтирования `<Canvas>`. SVG-вариант линии и DOM-сценарий рендерятся всегда (на любых устройствах) и являются единым источником истины для разметки сцен.
 
-### Fallback-контент
+Это значит: на десктопе SVG-линия всё равно сэмплируется и присутствует в DOM (хотя и невидима под WebGL-canvas) — даёт SEO, доступность и «no-JS» поведение.
 
-| Сегмент сценария | Замена |
-|---|---|
-| Hero | Статичный заголовок + постер (KTX2 → JPG/AVIF) |
-| Compress to dot | Не применяется (нет 3D) |
-| Travel along line | Скрытое или упрощённое: вертикальная декоративная линия в SVG |
-| Wormhole 1..3 | Статичные постеры этапов с CSS-параллаксом (translateY на scroll) |
-| Stage 1..3 | Полные DOM-секции с описанием этапов и скриншотами |
-| Information base | Без изменений (DOM-секция) |
-| Inversion loop | CSS `prefers-color-scheme` свитч в конце страницы, без зацикливания |
+## Reduced motion (жёсткий выключатель)
 
-Постеры — отдельные `<picture>` с AVIF/WebP, ширина по brakepoint'ам, lazy-loading через `loading="lazy"`.
+`prefers-reduced-motion: reduce` — отдельная ветка, **не равно** мобильной версии:
+
+| Поведение | Mobile (упрощённая) | Reduced motion |
+|---|---|---|
+| Lenis smooth scroll | Есть | **Нет** (нативный скролл) |
+| Master timeline + ScrollTrigger | Есть | **Нет** |
+| SVG-линия с прогрессом | Есть | **Нет** (статичный snapshot или скрыта) |
+| Инверсия на CTA | Есть | **Нет** |
+| Infinite loop | Есть | **Нет** |
+| Кольцо прогресса | Есть | Опционально (статичное / скрытое) |
+
+`reduced-motion` — статичная версия страницы: 5 блоков как обычные секции, без анимаций, без loop'а. Цель — соблюдение WCAG и не вызывать дискомфорт у пользователей с вестибулярной чувствительностью.
 
 ## Ассет-бюджеты
 
 | Категория | Бюджет (total) | Замечания |
 |---|---|---|
 | GLB-модели | < 5 MB | Draco compression обязателен; mesh quantization 14-bit для positions |
-| KTX2 текстуры | < 2 MB | BasisU UASTC для нормалей и важных карт, ETC1S для albedo/lightmaps |
+| KTX2 текстуры | < 2 MB | BasisU UASTC для нормалей, ETC1S для albedo |
 | HDR | < 1 MB | Один шумовой/градиентный envMap; не использовать настоящий HDR-фотопанорам |
 | Шрифты | < 200 KB | WOFF2, subset латиница + кириллица |
 | JS bundle (initial, gzip) | < 250 KB | Без R3F-сцены — критический путь |
@@ -88,14 +104,14 @@ gltf-transform optimize \
 
 ## Микрооптимизации
 
-- **InstancedMesh** для частиц-стриков и любых повторяющихся stage-объектов.
-- **Frustum culling** включён по умолчанию; для трубки и крупных объектов оставить, для частиц с big bounding box — отключать (`frustumCulled = false`).
-- **Освещение**: один directional light + ambient. Никаких realtime shadows — только bake'нутые.
-- **Material reuse**: общий `ShaderMaterial` для частиц/трубки разных сегментов через uniforms.
+- **InstancedMesh** для частиц-стриков (если применяются) и любых повторяющихся объектов.
+- **Frustum culling** включён по умолчанию; для линии и крупных объектов оставить, для частиц с big bounding box — отключать (`frustumCulled = false`).
+- **Освещение**: один directional light + ambient. Никаких realtime shadows.
+- **Material reuse**: общий `ShaderMaterial` для линии и эффектов, разница через uniforms.
 - **`needsUpdate` дисциплина**: не дёргать на каждый кадр.
 - **Текстура-атлас** для иконок этапов вместо отдельных файлов.
 - **`react-three/drei` `<Preload all />`** на root-сцене.
-- **`useTexture.preload`** + suspense-фолбэки для разовой загрузки в hero-сегменте.
+- **Внутренние страницы** — переводить GlobalCanvas в `mode='off'` или минимум, не тратить FPS на простой.
 
 ## Мониторинг
 
@@ -108,14 +124,16 @@ gltf-transform optimize \
 
 ## Доступность
 
-- `prefers-reduced-motion: reduce` → fallback (см. выше). Это не «опция», это hard switch.
+- `prefers-reduced-motion: reduce` → статичная версия (см. выше). Это не «опция», это hard switch.
 - Все overlay-тексты дублируются в DOM (не только в Troika), чтобы скрин-ридеры читали.
 - Контраст overlay-текста проверяется на инвертированной палитре тоже.
 - Tab-навигация работает по DOM-порядку независимо от 3D-сегмента.
-- Skip-link «To information base» в начале страницы для быстрого пропуска нарратива.
+- Skip-link «To CTA» в начале страницы для быстрого пропуска нарратива.
+- Кольцо прогресса — `aria-hidden="true"`, чтобы не зашумлять скрин-ридер.
 
 ## Источники
 - R3F scaling performance — <https://r3f.docs.pmnd.rs/advanced/scaling-performance>
 - Codrops: «Building efficient three.js scenes» — <https://tympanus.net/codrops/2025/02/11/building-efficient-three-js-scenes-optimize-performance-while-maintaining-quality/>
 - Utsubo: 100 three.js best practices — <https://www.utsubo.com/blog/threejs-best-practices-100-tips>
 - Digital Applied: Core Web Vitals 2026 — <https://www.digitalapplied.com/blog/core-web-vitals-2026-inp-lcp-cls-optimization-guide>
+- WCAG: prefers-reduced-motion — <https://www.w3.org/WAI/WCAG21/Understanding/animation-from-interactions.html>

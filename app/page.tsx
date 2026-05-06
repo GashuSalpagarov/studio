@@ -1,9 +1,9 @@
+import { Hero } from '@/components/scenes/Hero';
+
 export default function Home() {
   return (
     <main>
-      <section className="scene" data-scene="hero" id="hero">
-        <h1>Studio</h1>
-      </section>
+      <Hero />
       <section className="scene" data-scene="services" id="services">
         <h2>Услуги</h2>
       </section>

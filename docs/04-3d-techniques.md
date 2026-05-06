@@ -1,38 +1,69 @@
-# 04. 3D-техники
+# 04. 3D и анимационные техники
 
 ## TL;DR
-Wormhole — гибрид `TubeGeometry` + `InstancedMesh` particle streaks + post-FX (Bloom + ChromaticAberration + radial blur). Переход hero→точка — matched-canvas-position через `getBoundingClientRect` + `Vector3.unproject`. Камера летит по `CatmullRomCurve3.getPointAt/getTangentAt`. Инверсия цвета — uniform `uInvert` в финальном эффекте плюс CSS `@property` для DOM. Текст в WebGL — Troika через `<Text>` из drei. Loop — Lenis `infinite: true`.
+Главный визуал — **чёрная линия (путь)**. На десктопе линия живёт в Three.js (`Line2` / `MeshLine` / SDF в шейдере); на мобильном — SVG `<path>` с `stroke-dashoffset`. Прогресс отрисовки — uniform `uDrawProgress` или `stroke-dashoffset`. Переход hero→точка — matched-canvas-position через `getBoundingClientRect` + `Vector3.unproject`. Бесконечный скролл — Lenis `infinite: true` с teleport-возвратом без визуального jump. Wipe-инверсия — clip-path circle expanding из CTA-зоны или mask gradient (не глобальный `filter: invert`). Кольцо прогресса — SVG circle с `stroke-dasharray` и `stroke-dashoffset`. Wormhole отозван как центральная метафора; туннельные эффекты допустимы только как локальный приём для wipe-перехода между сценами.
 
-## Wormhole
+## Главная линия (путь)
 
-Гибридная конструкция из трёх слоёв в одном `<group>`:
+Главный визуальный объект — **чёрная линия**, которая рисуется по мере скролла и проходит через все 5 сцен главной.
 
-1. **TubeGeometry** на основе `CatmullRomCurve3`. Параметры: `tubularSegments=200..400`, `radialSegments=24..48`, `closed=false`. Материал — `ShaderMaterial` с двумя картами (base + glow), UV смещаются по `uTime + uProgress`.
+### Десктоп (WebGL)
 
-2. **InstancedMesh particle streaks.** Тонкие boxы или quad'ы (либо `Points` с anisotropic stretch в vertex shader). Сотни инстансов размещаются вдоль кривой; в vertex shader каждый инстанс растягивается по тангенсу пропорционально `uSpeed`. На выходе — длинные световые штрихи, а не отдельные шарики.
+Три варианта реализации, в порядке предпочтения:
 
-3. **Post-FX.** EffectComposer:
-   - `Bloom` (intensity 0.6–1.2, threshold 0.8, smoothing 0.4).
-   - `ChromaticAberration` (offset 0.0008–0.002, по `uProgress` в туннеле растёт).
-   - Кастомный radial blur (UV→полярные координаты, blur по радиусу) для ощущения скорости.
+1. **`Line2` (drei `<Line>`).** Толщина в screen-space, antialias, поддержка breakpoints. Хорошо работает для гладких CatmullRom-кривых. Прогресс отрисовки — через `dashOffset` материала или через subset вершин.
 
-Скетч uniform'ов туннельного материала:
+2. **MeshLine (`meshline` package или ручной shader).** Лучший контроль ширины и шейдинга, гибкие per-vertex эффекты (например, утолщение возле «продуктов»).
 
+3. **SDF в шейдере.** Линия рисуется в фрагменте по signed-distance от кривой; даёт идеальный antialias и легко комбинируется с post-effects. Дороже по математике.
+
+Для нашей задачи берём **Line2 / MeshLine**: достаточно гибко, дёшево, без сложных шейдеров.
+
+```ts
+// набросок: рисование прогрессом через uniform
+material.uniforms.uDrawProgress.value = scrollProgress.current; // 0..1
+// в фрагменте: discard, если относительная позиция вершины > uDrawProgress
 ```
-uTime         // RAF time
-uProgress     // 0..1 глобально
-uSegmentT     // 0..1 внутри сегмента
-uSpeed        // производная от Lenis velocity
-uInvert       // 0..1, финальный эффект
+
+Кривая линии — `CatmullRomCurve3` с centripetal параметризацией:
+
+```ts
+const points = [/* Vector3[] из спайн-узлов сценария */];
+const curve = new CatmullRomCurve3(points, false, 'centripetal', 0.5);
+const samples = curve.getPoints(800); // плотность под Line2
 ```
 
-UV-смещение в фрагменте: `vec2 uv = vec2(vUv.x, vUv.y - uTime * 0.4 - uSegmentT * 2.0);`.
+### Мобильный (SVG)
 
-Реф: «Infinite Tubes with Three.js» (Codrops 2017) и «Tunnel Animation» Mamboleoo — алгоритмически базовые рецепты, мы добавляем ScrollTrigger-driven `uSegmentT` вместо автономного времени.
+На мобильной версии та же кривая рисуется как SVG `<path>` с анимированным `stroke-dashoffset`:
+
+```css
+.line {
+  stroke: var(--fg);
+  stroke-width: 1.5;
+  fill: none;
+  stroke-dasharray: var(--length);
+  stroke-dashoffset: calc(var(--length) * (1 - var(--progress)));
+}
+```
+
+`--progress` обновляется из ScrollTrigger:
+
+```js
+ScrollTrigger.create({
+  trigger: 'body',
+  start: 0,
+  end: 'max',
+  scrub: true,
+  onUpdate: (self) => document.documentElement.style.setProperty('--progress', String(self.progress)),
+});
+```
+
+Та же `CatmullRomCurve3` сэмплируется в JS, выводится как `<path d="...">`. Это даёт визуальную и анимационную преемственность desktop↔mobile.
 
 ## Переход DOM → WebGL (compress to dot)
 
-Цель: на конце сжатия hero DOM-точка и WebGL-точка занимают одинаковую позицию на экране, потом DOM-точка скрывается, WebGL-точка остаётся.
+Цель: на конце сцены 1 DOM-точка hero и WebGL-точка занимают одинаковую позицию на экране, потом DOM-точка скрывается, WebGL-точка остаётся и стартует движение.
 
 ```ts
 function syncDomToMesh(el: HTMLElement, mesh: Mesh, camera: PerspectiveCamera) {
@@ -41,7 +72,6 @@ function syncDomToMesh(el: HTMLElement, mesh: Mesh, camera: PerspectiveCamera) {
   const cy = rect.top + rect.height / 2;
   const ndcX =  cx / window.innerWidth  * 2 - 1;
   const ndcY = -cy / window.innerHeight * 2 + 1;
-  // выбираем плоскость по фиксированному z в мировых координатах
   const z = -2; // плоскость, на которой живёт WebGL-точка
   const v = new Vector3(ndcX, ndcY, 0.5).unproject(camera);
   const dir = v.sub(camera.position).normalize();
@@ -54,83 +84,132 @@ function syncDomToMesh(el: HTMLElement, mesh: Mesh, camera: PerspectiveCamera) {
 
 Альтернатива — `r3f-scroll-rig` `<ScrollScene track={ref}>`: автоматически считает rect и подаёт `position` в children. Берём этот путь, если хватит контроля над scale/opacity; в противном случае — ручной режим выше.
 
-## Camera path
+## Камера
+
+Преимущественно **ortho** или **плоская перспектива вдоль линии** — не fly-through. Камера может слегка следовать за активной точкой линии для ощущения присутствия, но без агрессивного движения через тубу.
 
 ```ts
-const points = [/* Vector3[] из спайн-узлов */];
-const curve = new CatmullRomCurve3(points, false, 'centripetal', 0.5);
-
 useFrame(() => {
   const t = mapProgressToCameraT(scrollProgress.current);
   const pos = curve.getPointAt(t);
-  const tan = curve.getTangentAt(t);
-  camera.position.copy(pos);
-  camera.lookAt(pos.clone().add(tan));
+  // позиция камеры — лёгкий offset перпендикулярно линии, фиксированный z
+  camera.position.set(pos.x, pos.y, fixedCameraZ);
+  camera.lookAt(pos.x, pos.y, 0);
 });
 ```
 
-`centripetal` обязательно — иначе на резких поворотах появляются петли. `getPointAt`, а не `getPoint` — потому что нужно постоянное «расстояние = время», а не равномерное по контрольным точкам.
+`OrthographicCamera` тоже валиден — особенно для строгого продуктового вида линии.
 
-Для отладки добавить `<DebugCurve />` (drei `<Line>` по `curve.getPoints(200)`) и переключатель в dev-окружении.
+## Бесконечный скролл (loop)
 
-## Color inversion на петле
+Бесконечный скролл — обязательная часть сценария. Реализация:
 
-**Вариант A — uniform в финальном Effect (рекомендуется для WebGL).**
-
-```glsl
-// inversion.frag
-uniform sampler2D tDiffuse;
-uniform float uInvert;
-varying vec2 vUv;
-void main() {
-  vec3 c = texture2D(tDiffuse, vUv).rgb;
-  gl_FragColor = vec4(mix(c, 1.0 - c, uInvert), 1.0);
-}
-```
-
-Подключается как последний эффект в `EffectComposer`, после Bloom/CA. `uInvert` — gsap tween 0.92→1.00.
-
-**Вариант B — CSS `filter: invert(1)` + `mix-blend-mode: difference`.**
-
-Дёшево, но `filter: invert` не идеально дружит с GPU-композитингом и иногда даёт «прыжки» цвета на subpixel-границах. Подходит для быстрого прототипа.
-
-**Рекомендация.** A для WebGL-слоя; для DOM — `@property --bg, --fg` с keyframes:
-
-```css
-@property --bg { syntax: '<color>'; inherits: true; initial-value: #0a0a0a; }
-@property --fg { syntax: '<color>'; inherits: true; initial-value: #f5f5f5; }
-```
-
-GSAP меняет custom-properties на корне, DOM плавно переходит синхронно с `uInvert`.
-
-## Текст в WebGL
-
-`drei` `<Text>` (троика под капотом) — SDF, читается на любой глубине. Используем для overlay-надписей этапов («Discover», «Design», «Build»), если нужно, чтобы текст «жил» в перспективе.
-
-Если нужно DOM-acceptable selection / SEO — оставляем текст в DOM, а WebGL-сцена просто синхронизируется по позиции через `r3f-scroll-rig`.
-
-## Particle streaks
-
-Два варианта:
-
-| Вариант | Плюсы | Минусы |
-|---|---|---|
-| `InstancedMesh` thin box geometry | Полный контроль над масштабом по тангенсу, нормали есть | Чуть тяжелее по vertex'ам |
-| `Points` + custom shader (anisotropic stretch) | Дешёво по геометрии | Нужен кастомный vertex для растяжения |
-
-Берём `InstancedMesh`: он лучше дружит с post-FX (нормально проявляется в Bloom без артефактов).
-
-## Loop scroll
+### Lenis `infinite: true`
 
 ```ts
 const lenis = new Lenis({ infinite: true, lerp: 0.1 });
 ```
 
-`infinite: true` зацикливает скролл. Минусы: ScrollTrigger по-умолчанию рассчитывает `end: 'max'` один раз, поэтому добавляем listener `lenis.on('scroll', ScrollTrigger.update)` (уже есть в [02-architecture.md](./02-architecture.md)).
+`infinite: true` зацикливает скролл, telephone-режим: после конца возвращается к началу. Минусы: ScrollTrigger по-умолчанию рассчитывает `end: 'max'` один раз; листенер `lenis.on('scroll', ScrollTrigger.update)` (см. [02-architecture.md](./02-architecture.md)) корректирует.
 
-Альтернатива — clone-based loop: дублирование DOM в конце страницы и ручной seek через `scrollTo(0)` при достижении 1.0. Используем как fallback.
+### Clone-mounting и teleport без видимого jump
 
-На петле `uInvert` остаётся 1; повторно петля → инверсия второй раз даёт оригинальную палитру; на каждой чётной петле палитра одна, на нечётной — другая. Можно либо удерживать `uInvert = 1` навсегда, либо тогглить — концепт-решение фиксируется на этапе визуального дизайна.
+Чтобы переход «конец → начало» был визуально бесшовным:
+
+1. В DOM-конце страницы дублируется блок Hero (clone-mount): первые ~50–100vh главной.
+2. ScrollTrigger срабатывает на пороге ~95% страницы и стартует анимацию инверсии.
+3. На пороге 100% (или ровно в момент завершения wipe-инверсии) Lenis телепортирует скролл в эквивалентную позицию в начале страницы. Поскольку финальный кадр CTA (после wipe) визуально совпадает с инвертированным первым кадром Hero — переход не виден.
+4. После teleport инверсия продолжает работать как фон: палитра остаётся инвертированной до следующего захода в CTA.
+
+Это **«infinite carousel-like loop»**, а не одноразовый возврат. Альтернатива — clone-based loop с ручным `scrollTo(0)`; используется как fallback, если Lenis `infinite` начнёт конфликтовать с ScrollTrigger.
+
+## Wipe-инверсия на CTA
+
+Wipe-инверсия живёт **только на CTA-зоне главной** (диапазон 0.92–1.00). Внутренние страницы — без инверсии.
+
+### Не используем глобальный `filter: invert(1)`
+
+Минусы глобального `filter: invert`: ломает GPU-композитинг, даёт «прыжки» цвета на subpixel-границах, не даёт контроля над зоной перехода.
+
+### Вариант A — clip-path circle expanding (DOM)
+
+```css
+.invert-overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--bg-inverted);
+  color: var(--fg-inverted);
+  clip-path: circle(0% at var(--cta-x) var(--cta-y));
+  pointer-events: none;
+}
+```
+
+GSAP tween — `clip-path: circle(150% at ...)` от 0% до 150% на прогрессе 0.92→1.00. `--cta-x` и `--cta-y` берутся из `getBoundingClientRect` CTA-кнопки в момент мониторинга.
+
+### Вариант B — mask gradient (canvas)
+
+Финальный effect-проход в EffectComposer:
+
+```glsl
+uniform sampler2D tDiffuse;
+uniform float uInvert;     // 0..1
+uniform vec2 uOrigin;      // экранные координаты CTA
+uniform float uRadius;     // 0..1, растёт по uInvert
+varying vec2 vUv;
+
+void main() {
+  vec3 c = texture2D(tDiffuse, vUv).rgb;
+  float d = distance(vUv, uOrigin);
+  float k = smoothstep(uRadius - 0.02, uRadius, d); // 0 внутри, 1 снаружи
+  vec3 inverted = 1.0 - c;
+  gl_FragColor = vec4(mix(inverted, c, k), 1.0);
+}
+```
+
+Внутри круга — инвертированные цвета, снаружи — исходные. Радиус растёт по `uInvert` 0→√2 (диагональ).
+
+### DOM-палитра через CSS custom properties
+
+Чтобы DOM плавно следовал инверсии (сохраняя antialiased текст), используем `@property`:
+
+```css
+@property --bg { syntax: '<color>'; inherits: true; initial-value: #ffffff; }
+@property --fg { syntax: '<color>'; inherits: true; initial-value: #0a0a0a; }
+```
+
+GSAP меняет `--bg`, `--fg` на корне на той же scrubbed-полосе 0.92→1.00. Так DOM-цвета синхронны с canvas-инверсией без `filter`.
+
+**Принимаемое решение:** Вариант A (clip-path) для DOM-overlay + `@property` для tokens; Вариант B (canvas mask) — только если нужно инвертировать сам canvas-контент. На главной чаще всего Вариант A достаточен.
+
+## Кольцо прогресса
+
+Простое SVG-кольцо в углу страницы. Без чисел, без сегментов.
+
+```html
+<svg viewBox="0 0 40 40" class="progress-ring">
+  <circle cx="20" cy="20" r="18" fill="none"
+          stroke="var(--fg)" stroke-width="1.5"
+          stroke-dasharray="113.097"
+          stroke-dashoffset="calc(113.097 * (1 - var(--progress)))"
+          transform="rotate(-90 20 20)" />
+</svg>
+```
+
+`113.097` ≈ `2 * π * 18` — длина окружности. `--progress` обновляется из ScrollTrigger (см. выше). Рендерится в `app/layout.tsx` как fixed-позиционированный элемент, переживает route changes.
+
+На внутренних страницах кольцо может скрываться или показывать прогресс по странице (опционально, фиксируется на дизайн-этапе).
+
+## Wormhole как опциональный приём
+
+Wormhole **отозван как центральная метафора**. Остаётся в арсенале как **локальный wipe-эффект**: например, между двумя сценами линии или на route transition можно использовать короткий tube-fly-through (0.3–0.6 сек), как визуальный «прокол» между состояниями.
+
+Базовая техника — `TubeGeometry` с UV-смещением + InstancedMesh particle streaks + Bloom/CA — остаётся документированной для возможного использования. Параметры: `tubularSegments=200..400`, `radialSegments=24..48`, `closed=false`. UV-смещение в фрагменте: `vec2 uv = vec2(vUv.x, vUv.y - uTime * 0.4 - uSegmentT * 2.0);`.
+
+Реф: «Infinite Tubes with Three.js» (Codrops 2017) и «Tunnel Animation» Mamboleoo.
+
+## Текст в сцене
+
+`drei` `<Text>` (троика под капотом) — SDF, читается на любой глубине. Используем редко — основная типографика живёт в DOM (для SEO, селекта, доступности). WebGL-текст — только если нужен perspective-эффект, который не воспроизвести в DOM.
 
 ## Источники
 - Codrops: «How to build cinematic 3D scroll experiences with GSAP» — <https://tympanus.net/codrops/2025/11/19/how-to-build-cinematic-3d-scroll-experiences-with-gsap/>
