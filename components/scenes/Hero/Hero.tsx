@@ -24,6 +24,12 @@ export function Hero() {
       const scrollVh = (window.scrollY / vh) * 100;
       const offsetVh = Math.max(43 - scrollVh, 0);
       dropRef.current.style.setProperty('--drop-offset', `${offsetVh}vh`);
+
+      if (offsetVh <= 0) {
+        dropRef.current.classList.add(styles.dropPinned);
+      } else {
+        dropRef.current.classList.remove(styles.dropPinned);
+      }
     };
 
     window.addEventListener('scroll', updateOffset, { passive: true });
@@ -53,8 +59,14 @@ export function Hero() {
       </h1>
 
       <div ref={dropRef} className={styles.drop} aria-hidden="true" />
+      <span className={styles.dropLabel}>начало пути</span>
 
       <HeroLiquidIntro startMs={ready ? startMsRef.current : null} />
+
+      <span className={styles.logo}>studio</span>
+      <a className={styles.phone} href="tel:+79990000000">
+        +7 (999) 000-00-00
+      </a>
     </section>
   );
 }
