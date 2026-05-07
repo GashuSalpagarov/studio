@@ -7,6 +7,7 @@ import { HeroScrollLock } from './HeroScrollLock';
 
 export function Hero() {
   const startMsRef = useRef<number | null>(null);
+  const heroRef = useRef<HTMLElement>(null);
   const dropRef = useRef<HTMLDivElement>(null);
   const [ready, setReady] = useState(false);
 
@@ -17,13 +18,17 @@ export function Hero() {
     });
   }, []);
 
+  // Hero отвечает только за вертикальное движение точки к центру и её фиксацию.
+  // Горизонтальная траектория и контент сцены 2 — в Scene2.
   useEffect(() => {
+    const root = document.documentElement;
     const updateOffset = () => {
       if (!dropRef.current) return;
-      const vh = window.innerHeight;
-      const scrollVh = (window.scrollY / vh) * 100;
+      const h = window.innerHeight;
+      const scrollVh = (window.scrollY / h) * 100;
       const offsetVh = Math.max(43 - scrollVh, 0);
-      dropRef.current.style.setProperty('--drop-offset', `${offsetVh}vh`);
+
+      root.style.setProperty('--drop-offset', `${offsetVh}vh`);
 
       if (offsetVh <= 0) {
         dropRef.current.classList.add(styles.dropPinned);
@@ -44,6 +49,7 @@ export function Hero() {
 
   return (
     <section
+      ref={heroRef}
       className={`scene ${styles.hero} ${ready ? styles.ready : ''}`}
       data-scene="hero"
       id="hero"
@@ -54,9 +60,7 @@ export function Hero() {
       <span className={styles.studioLabel}>studio</span>
       <span className={styles.ctaLabel}>Связаться</span>
 
-      <h1 className={styles.title}>
-        {'Создаём цифровые\nпродукты'}
-      </h1>
+      <h1 className={styles.title}>{'Создаём цифровые\nпродукты'}</h1>
 
       <div ref={dropRef} className={styles.drop} aria-hidden="true" />
       <span className={styles.dropLabel}>начало пути</span>
