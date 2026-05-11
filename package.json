@@ -27,6 +27,7 @@
     "react-dom": "^19.2.5",
     "stats-gl": "^4.1.0",
     "three": "^0.184.0",
+    "tunnel-rat": "^0.1.2",
     "web-vitals": "^5.2.0"
   },
   "devDependencies": {

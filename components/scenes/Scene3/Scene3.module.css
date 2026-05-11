@@ -1,0 +1,28 @@
+.scene3 {
+  position: relative;
+  height: 300vh;
+  z-index: 4;
+}
+
+.sticky {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  width: 100%;
+  pointer-events: none;
+}
+
+.debug {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  padding: 8px 12px;
+  background: rgba(10, 10, 10, 0.78);
+  color: #fff;
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.4;
+  border-radius: 6px;
+  pointer-events: none;
+  letter-spacing: 0.02em;
+}

@@ -191,6 +191,10 @@ export function Scene2() {
       // X-смещение точки — отсюда. Y-смещение и фиксация — Hero.
       root.style.setProperty('--drop-x', `${dropX}vw`);
 
+      // Трасса плавно гаснет в конце Scene 2: к scrollVh 500 — полностью прозрачна.
+      const trailOpacity = Math.max(0, Math.min(1, (500 - scrollVh) / 70));
+      root.style.setProperty('--trail-opacity', `${trailOpacity}`);
+
       for (let i = 0; i < BLOCKS.length; i++) {
         const block = BLOCKS[i];
         root.style.setProperty(
