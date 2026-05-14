@@ -21,9 +21,9 @@ export function Scene3() {
       const p = total > 0 ? Math.max(0, Math.min(1, scrolled / total)) : 0;
       progressRef.current = p;
 
-      // CSS-точка: фейд-аут к p=0.05 (синхронно с концом dolly zoom) и обратный фейд-ин
-      // в M9 (0.95..1.0), когда формируется новое ядро.
-      const dropFadeOut = Math.max(0, Math.min(1, (0.05 - p) / 0.05));
+      // CSS-точка: фейд-аут к p=0.2 (даём частицам набрать плотность для маскировки)
+      // и обратный фейд-ин в M9 (0.95..1.0), когда формируется новое ядро.
+      const dropFadeOut = Math.max(0, Math.min(1, (0.2 - p) / 0.2));
       const dropFadeIn = Math.max(0, Math.min(1, (p - 0.95) / 0.05));
       const dropOpacity = Math.max(dropFadeOut, dropFadeIn);
       document.documentElement.style.setProperty("--drop-opacity", `${dropOpacity}`);

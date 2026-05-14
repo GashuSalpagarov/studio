@@ -72,6 +72,20 @@ function easeInOutCubic(t: number): number {
   return t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2;
 }
 
+// Параллакс выключен на стыках с CSS-точкой:
+//  p ∈ [0, 0.2]    — точка ещё видна, фейдится → gate = 0
+//  p ∈ [0.2, 0.25] — плавный rise → gate = 0..1
+//  p ∈ [0.25, 0.9] — gate = 1 (parallax работает)
+//  p ∈ [0.9, 0.95] — плавный fall → gate = 1..0
+//  p ∈ [0.95, 1.0] — точка снова появляется в M9 → gate = 0
+function parallaxGateForProgress(p: number): number {
+  if (p < 0.2) return 0;
+  if (p < 0.25) return easeInOutCubic((p - 0.2) / 0.05);
+  if (p <= 0.9) return 1;
+  if (p < 0.95) return 1 - easeInOutCubic((p - 0.9) / 0.05);
+  return 0;
+}
+
 function cameraZForProgress(p: number): number {
   if (p <= 0) return INITIAL_CAMERA_Z;
   if (p <= DOLLY_END_PROGRESS) {
@@ -181,7 +195,9 @@ export function Scene3R3F({ progressRef }: Props) {
       directions[i * 3 + 1] = dir.y;
       directions[i * 3 + 2] = dir.z;
       pathLengths[i] = respawnZ / dir.z;
-      phases[i] = Math.random() * pathLengths[i];
+      // Квадратное смещение к 0: больше частиц с малой фазой →
+      // плотный фронт у origin в окне фейда CSS-точки (p=0..0.05).
+      phases[i] = Math.random() ** 2 * pathLengths[i];
       positions[i * 3] = 0;
       positions[i * 3 + 1] = 0;
       positions[i * 3 + 2] = 1e6;
@@ -206,7 +222,9 @@ export function Scene3R3F({ progressRef }: Props) {
       directions[i * 3 + 1] = dir.y;
       directions[i * 3 + 2] = dir.z;
       pathLengths[i] = respawnZ / dir.z;
-      phases[i] = Math.random() * pathLengths[i];
+      // Квадратное смещение к 0: больше частиц с малой фазой →
+      // плотный фронт у origin в окне фейда CSS-точки (p=0..0.05).
+      phases[i] = Math.random() ** 2 * pathLengths[i];
       const ix = i * 6;
       positions[ix] = 0;
       positions[ix + 1] = 0;
@@ -251,8 +269,9 @@ export function Scene3R3F({ progressRef }: Props) {
     persp.fov = cameraFovForProgress(p);
 
     if (inScene) {
-      const targetX = pointerRef.current.x * PARALLAX_AMPLITUDE;
-      const targetY = pointerRef.current.y * PARALLAX_AMPLITUDE;
+      const gate = parallaxGateForProgress(p);
+      const targetX = pointerRef.current.x * PARALLAX_AMPLITUDE * gate;
+      const targetY = pointerRef.current.y * PARALLAX_AMPLITUDE * gate;
       persp.position.x = lerp(persp.position.x, targetX, PARALLAX_LERP);
       persp.position.y = lerp(persp.position.y, targetY, PARALLAX_LERP);
     } else {
