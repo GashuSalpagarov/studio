@@ -135,13 +135,16 @@ function buildPathD(scrollVh: number, w: number, h: number): string {
   const labelY = ((91 - scrollVh) * h) / 100;
   points.push([labelX, labelY]);
 
+  // 20px — тот же сдвиг точки вниз, что выставляется через --drop-offset.
+  // Трасса должна заканчиваться ровно у точки, поэтому добавляем к каждому sample.
+  const dropYOffset = 20;
   const startS = 43;
   const step = 0.6;
   let lastS = startS;
   for (let s = startS; s <= scrollVh; s += step) {
     const dropX = getDropX(s);
     const x = ((50 + dropX) * w) / 100;
-    const y = ((50 + s - scrollVh) * h) / 100;
+    const y = ((50 + s - scrollVh) * h) / 100 + dropYOffset;
     points.push([x, y]);
     lastS = s;
   }
@@ -150,7 +153,7 @@ function buildPathD(scrollVh: number, w: number, h: number): string {
   // чтобы трасса заканчивалась ровно у точки.
   if (scrollVh - lastS > 0.01) {
     const finalDropX = getDropX(scrollVh);
-    points.push([((50 + finalDropX) * w) / 100, h * 0.5]);
+    points.push([((50 + finalDropX) * w) / 100, h * 0.5 + dropYOffset]);
   }
 
   if (points.length < 2) return '';
@@ -190,6 +193,12 @@ export function Scene2() {
 
       // X-смещение точки — отсюда. Y-смещение и фиксация — Hero.
       root.style.setProperty('--drop-x', `${dropX}vw`);
+
+      // После Hero-фазы (scrollVh > 43) сдвигаем точку на 20px вниз — единый
+      // уровень с Scene 3, где точка попадает в gap финальной сетки.
+      if (scrollVh > 43) {
+        root.style.setProperty('--drop-offset', '20px');
+      }
 
       // Трасса плавно гаснет в конце Scene 2: к scrollVh 500 — полностью прозрачна.
       const trailOpacity = Math.max(0, Math.min(1, (500 - scrollVh) / 70));
