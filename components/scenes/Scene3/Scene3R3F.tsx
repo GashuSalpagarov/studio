@@ -3,6 +3,7 @@
 import { useFrame, useThree } from "@react-three/fiber";
 import { type RefObject, useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
+import { type CardContent, CARDS_CONTENT } from "./cardsData";
 
 const PARTICLE_COUNT = 1000;
 const STREAK_COUNT = 200;
@@ -48,6 +49,7 @@ type CardConfig = {
 
 // Каждая карточка летит прямо к камере из своей точки около центра.
 // Раскладка по 4 квадрантам: ↖ ↘ ↗ ↙ — чтобы не перекрывали друг друга на пролёте.
+// В финале (M9) карточки анимируются на свои grid-позиции независимо от quadrant.
 const CARDS: CardConfig[] = [
   { pHold: 0.52, offsetX: -0.7, offsetY: 0.5, width: 1.4, height: 1.0, tiltX: -0.05, tiltY: -0.05 },
   { pHold: 0.6, offsetX: 0.7, offsetY: -0.5, width: 1.0, height: 1.4, tiltX: -0.05, tiltY: 0.05 },
@@ -55,35 +57,6 @@ const CARDS: CardConfig[] = [
   { pHold: 0.76, offsetX: -0.7, offsetY: -0.5, width: 1.6, height: 0.9, tiltX: -0.05, tiltY: 0.05 },
 ];
 
-type CardContent = {
-  title: string;
-  description: string;
-  tag: string;
-};
-
-// Фейковый контент — структура и стили финальные, данные заменим позже.
-const CARDS_CONTENT: CardContent[] = [
-  {
-    title: "Промо-сайт студии",
-    description: "Hero и пять сцен на скролле с жидкой метафорой пути.",
-    tag: "Web",
-  },
-  {
-    title: "Банковский клиент",
-    description: "iOS- и Android-приложение для частных клиентов.",
-    tag: "Mobile",
-  },
-  {
-    title: "Brand system",
-    description: "Айдентика и гайдлайны для tech-стартапа на ранней стадии.",
-    tag: "Branding",
-  },
-  {
-    title: "E-commerce платформа",
-    description: "B2B-каталог с конструктором заказов и аналитикой продаж.",
-    tag: "Platform",
-  },
-];
 
 interface Props {
   progressRef: RefObject<number>;

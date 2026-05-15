@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import { r3fTunnel } from "@/r3f/tunnel";
 import styles from "./Scene3.module.css";
+import { Scene3Finale } from "./Scene3Finale";
 import { Scene3R3F } from "./Scene3R3F";
 
 export function Scene3() {
@@ -41,7 +42,9 @@ export function Scene3() {
 
   return (
     <section ref={sectionRef} className={styles.scene3} data-scene="scene3">
-      <div className={styles.sticky} />
+      <div className={styles.sticky}>
+        <Scene3Finale />
+      </div>
       <r3fTunnel.In>
         <Scene3R3F progressRef={progressRef} />
       </r3fTunnel.In>
