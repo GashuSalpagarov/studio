@@ -3,7 +3,7 @@
   --color-bg: #ffffff;
   --color-fg: #0a0a0a;
   --color-accent: #000000;
-  --font-sans: var(--font-inter), system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 
   /* Управляемые JS — позиция точки-маркера */
   --drop-offset: 43vh;
