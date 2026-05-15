@@ -31,7 +31,7 @@ const CARD_READ_PROGRESS = 1.5;
 const CARD_PAST_PROGRESS = 4;
 const CARD_FADE_FRACTION = 0.1;
 const CARD_START_SCALE = 0.01;
-const CARD_COLOR = "#1a1a1a";
+const CARD_TEXTURE_SCALE = 768; // px на world-unit для canvas-текстур карточек
 
 type CardConfig = {
   startProgress: number;
@@ -49,6 +49,36 @@ const CARDS: CardConfig[] = [
   { startProgress: 0.51, endProgress: 0.62, dirX: -0.8, dirZ: 1, width: 1.0, height: 1.4, tiltX: -0.05, tiltY: 0.05 },
   { startProgress: 0.62, endProgress: 0.73, dirX: 0.25, dirZ: 1, width: 1.2, height: 1.2, tiltX: -0.05, tiltY: -0.05 },
   { startProgress: 0.73, endProgress: 0.84, dirX: -0.25, dirZ: 1, width: 1.6, height: 0.9, tiltX: -0.05, tiltY: 0.05 },
+];
+
+type CardContent = {
+  title: string;
+  description: string;
+  tag: string;
+};
+
+// Фейковый контент — структура и стили финальные, данные заменим позже.
+const CARDS_CONTENT: CardContent[] = [
+  {
+    title: "Промо-сайт студии",
+    description: "Hero и пять сцен на скролле с жидкой метафорой пути.",
+    tag: "Web",
+  },
+  {
+    title: "Банковский клиент",
+    description: "iOS- и Android-приложение для частных клиентов.",
+    tag: "Mobile",
+  },
+  {
+    title: "Brand system",
+    description: "Айдентика и гайдлайны для tech-стартапа на ранней стадии.",
+    tag: "Branding",
+  },
+  {
+    title: "E-commerce платформа",
+    description: "B2B-каталог с конструктором заказов и аналитикой продаж.",
+    tag: "Platform",
+  },
 ];
 
 interface Props {
@@ -162,6 +192,95 @@ function createCircleTexture(): THREE.CanvasTexture | null {
   return new THREE.CanvasTexture(canvas);
 }
 
+// Простой word-wrap по ширине. Возвращает Y после последней строки.
+function wrapText(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  x: number,
+  y: number,
+  maxWidth: number,
+  lineHeight: number,
+): number {
+  const words = text.split(" ");
+  let line = "";
+  let yPos = y;
+  for (let i = 0; i < words.length; i++) {
+    const testLine = `${line + words[i]} `;
+    if (ctx.measureText(testLine).width > maxWidth && i > 0) {
+      ctx.fillText(line.trim(), x, yPos);
+      line = `${words[i]} `;
+      yPos += lineHeight;
+    } else {
+      line = testLine;
+    }
+  }
+  ctx.fillText(line.trim(), x, yPos);
+  return yPos + lineHeight;
+}
+
+// Рендерит карточку кейса на canvas: bg, плейсхолдер превью, тег, заголовок,
+// описание, кнопка-ссылка. Результат — CanvasTexture для меша.
+function createCardTexture(
+  content: CardContent,
+  width: number,
+  height: number,
+): THREE.CanvasTexture | null {
+  if (typeof document === "undefined") return null;
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.round(width * CARD_TEXTURE_SCALE);
+  canvas.height = Math.round(height * CARD_TEXTURE_SCALE);
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return null;
+
+  const W = canvas.width;
+  const H = canvas.height;
+  const padding = 0.05 * H;
+  const imgH = H * 0.55;
+  const font = "system-ui, -apple-system, sans-serif";
+
+  // Фон карточки.
+  ctx.fillStyle = "#0a0a0a";
+  ctx.fillRect(0, 0, W, H);
+
+  // Плейсхолдер превью — диагональный градиент в тёмных серых.
+  const grad = ctx.createLinearGradient(0, 0, W, imgH);
+  grad.addColorStop(0, "#2a2a2a");
+  grad.addColorStop(1, "#161616");
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, W, imgH);
+
+  // Контент под превью.
+  ctx.textBaseline = "top";
+  let y = imgH + padding;
+
+  // Тег (UPPERCASE, мелкий, серый).
+  ctx.fillStyle = "#888";
+  ctx.font = `500 ${0.032 * H}px ${font}`;
+  ctx.fillText(content.tag.toUpperCase(), padding, y);
+  y += 0.05 * H;
+
+  // Заголовок (крупный, светлый).
+  ctx.fillStyle = "#fafafa";
+  ctx.font = `600 ${0.072 * H}px ${font}`;
+  ctx.fillText(content.title, padding, y);
+  y += 0.1 * H;
+
+  // Описание (с переносом).
+  ctx.fillStyle = "#aaa";
+  ctx.font = `400 ${0.038 * H}px ${font}`;
+  wrapText(ctx, content.description, padding, y, W - padding * 2, 0.05 * H);
+
+  // Кнопка-ссылка — у нижнего края.
+  ctx.fillStyle = "#fff";
+  ctx.font = `500 ${0.038 * H}px ${font}`;
+  ctx.textBaseline = "bottom";
+  ctx.fillText("Посмотреть кейс →", padding, H - padding);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.needsUpdate = true;
+  return texture;
+}
+
 export function Scene3R3F({ progressRef }: Props) {
   const pointsRef = useRef<THREE.Points>(null);
   const linesRef = useRef<THREE.LineSegments>(null);
@@ -180,6 +299,11 @@ export function Scene3R3F({ progressRef }: Props) {
   }, []);
 
   const particleTexture = useMemo(() => createCircleTexture(), []);
+
+  const cardTextures = useMemo(
+    () => CARDS.map((card, i) => createCardTexture(CARDS_CONTENT[i], card.width, card.height)),
+    [],
+  );
 
   const pointsData = useMemo(() => {
     const positions = new Float32Array(PARTICLE_COUNT * 3);
@@ -386,7 +510,7 @@ export function Scene3R3F({ progressRef }: Props) {
           rotation={[card.tiltX, card.tiltY, 0]}
         >
           <planeGeometry args={[card.width, card.height]} />
-          <meshBasicMaterial color={CARD_COLOR} transparent side={THREE.DoubleSide} />
+          <meshBasicMaterial map={cardTextures[i]} transparent side={THREE.DoubleSide} />
         </mesh>
       ))}
     </>
