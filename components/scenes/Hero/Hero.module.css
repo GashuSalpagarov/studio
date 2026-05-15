@@ -315,17 +315,21 @@
   font-size: 1.25rem;
   font-weight: 500;
   letter-spacing: -0.02em;
+  line-height: 1;
   color: var(--color-fg);
   opacity: 0;
 }
 
+/* Top сдвинут на 3px, чтобы baseline телефона (font-size 1rem) совпал
+   с baseline логотипа (font-size 1.25rem). */
 .phone {
   position: fixed;
-  top: 32px;
+  top: 35px;
   right: 32px;
   z-index: 10;
   font-size: 1rem;
   font-weight: 500;
+  line-height: 1;
   color: var(--color-fg);
   text-decoration: none;
   opacity: 0;
