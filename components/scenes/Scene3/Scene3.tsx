@@ -28,6 +28,16 @@ export function Scene3() {
       const dropFadeIn = Math.max(0, Math.min(1, (p - 0.95) / 0.05));
       const dropOpacity = Math.max(dropFadeOut, dropFadeIn);
       document.documentElement.style.setProperty("--drop-opacity", `${dropOpacity}`);
+
+      // Сдвигаем точку вниз, чтобы попала в gap между рядами finale-сетки.
+      // И сдвигаем канвас на ту же величину, чтобы world origin (откуда вылетают
+      // частицы) совпал с положением точки.
+      if (p > 0) {
+        document.documentElement.style.setProperty("--drop-offset", "20px");
+        document.documentElement.style.setProperty("--canvas-y", "20px");
+      } else {
+        document.documentElement.style.setProperty("--canvas-y", "0px");
+      }
     };
 
     window.addEventListener("scroll", update, { passive: true });

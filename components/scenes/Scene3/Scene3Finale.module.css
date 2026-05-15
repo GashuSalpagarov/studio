@@ -4,7 +4,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 1vw 1vw 1vh; /* минимум со всех сторон */
+  /* Боковые 32px и верхние 72px = границы логотипа и телефона (top: 32px + ~20px высота + воздух). */
+  padding: 72px 32px 32px;
   pointer-events: none;
   overflow: hidden; /* карточки прилетают из-за края — не скроллим страницу */
 }
@@ -13,10 +14,10 @@
   width: 100%;
   height: 100%;
   display: grid;
-  grid-template-columns: repeat(13, 1fr);
-  grid-template-rows: repeat(13, 1fr);
-  column-gap: 10px;
-  row-gap: 10px;
+  grid-template-columns: repeat(12, 1fr);
+  grid-template-rows: 1fr 1fr; /* строки одинаковой высоты */
+  column-gap: 20px;
+  row-gap: 20px;
   pointer-events: var(--finale-pointer-events, none);
 }
 
@@ -85,37 +86,37 @@
   margin-top: auto;
 }
 
-/* Раскладка 13×13 grid + направление slide-in.
-   Карточки прилетают из тех квадрантов, куда улетели в WebGL-фазе. */
+/* Раскладка 12×2 grid + направление slide-in. */
 .card1 {
-  grid-area: 2 / 1 / 7 / 5;
+  grid-area: 1 / 1 / 2 / 5;
   --slide-dx: -60vw;
   --slide-dy: -60vh;
 }
 
 .card2 {
-  grid-area: 1 / 5 / 7 / 8;
+  grid-area: 1 / 5 / 2 / 9;
   --slide-dx: 0vw;
   --slide-dy: -60vh;
 }
 
 .card3 {
-  grid-area: 2 / 8 / 8 / 14;
+  grid-area: 1 / 9 / 2 / 13;
   --slide-dx: 60vw;
   --slide-dy: -60vh;
 }
 
 .card4 {
-  grid-area: 7 / 2 / 13 / 7;
+  grid-area: 2 / 1 / 3 / 9;
   --slide-dx: -60vw;
   --slide-dy: 60vh;
 }
 
 .invitation {
-  grid-area: 8 / 7 / 14 / 13;
-  padding: 32px;
-  position: relative; /* для абсолютной стрелки */
-  --slide-dx: 0vw;
+  grid-area: 2 / 9 / 3 / 13;
+  padding: 20px;
+  align-items: center;
+  justify-content: center;
+  --slide-dx: 60vw;
   --slide-dy: 60vh;
   /* Шахматка-плейсхолдер под будущую сетку превью проектов. */
   background-image: conic-gradient(
@@ -124,35 +125,15 @@
     #1a1a1a 0 75%,
     #0a0a0a 0
   );
-  background-size: 260px 260px;
+  background-size: 80px 80px;
   text-decoration: none;
 }
 
-.invitationDescription {
-  color: #aaa;
-  font-size: 0.95rem;
-  line-height: 1.5;
-  margin: 0;
-  max-width: 70%;
-}
-
-.invitationMeta {
-  color: #666;
-  font-size: 0.75rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  font-weight: 500;
-  margin: 12px 0 0;
-}
-
-/* Связка «Все работы →» в правом нижнем углу. Заголовок и стрелка — единый CTA. */
+/* CTA «Все работы →» по центру маленького квадратика. */
 .invitationCta {
-  position: absolute;
-  right: 32px;
-  bottom: 32px;
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 12px;
 }
 
 .invitationTitle {

@@ -13,6 +13,9 @@ export function GlobalCanvas() {
         inset: 0,
         zIndex: 1,
         pointerEvents: "none",
+        // Сцены могут сдвигать центр канваса (а значит world origin) через --canvas-y.
+        // Например в Scene 3 = 20px вниз — чтобы частицы и CSS-точка совпадали в gap-е сетки.
+        transform: "translateY(var(--canvas-y, 0px))",
       }}
       gl={{ alpha: true, antialias: true }}
       dpr={[1, 2]}

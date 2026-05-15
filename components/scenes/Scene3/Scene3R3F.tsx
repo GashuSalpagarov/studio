@@ -53,10 +53,10 @@ type CardConfig = {
 // долю экрана, что её grid-area в финальной сетке (для baseline-viewport 1920×1080,
 // FOV=95°, камера на cam_z(pHold)). Формула: world_dim = screen_fraction × 2·d·tan(FOV/2)·AR.
 const CARDS: CardConfig[] = [
-  { pHold: 0.45, offsetX: -0.7, offsetY: 0.5, width: 1.29, height: 0.9, tiltX: -0.05, tiltY: -0.05 },
-  { pHold: 0.58, offsetX: 0.7, offsetY: -0.5, width: 0.84, height: 0.94, tiltX: -0.05, tiltY: 0.05 },
-  { pHold: 0.71, offsetX: 0.7, offsetY: 0.5, width: 1.43, height: 0.79, tiltX: -0.05, tiltY: -0.05 },
-  { pHold: 0.84, offsetX: -0.7, offsetY: -0.5, width: 0.97, height: 0.65, tiltX: -0.05, tiltY: 0.05 },
+  { pHold: 0.45, offsetX: -0.7, offsetY: 0.5, width: 1.55, height: 1.22, tiltX: -0.05, tiltY: -0.05 },
+  { pHold: 0.58, offsetX: 0.7, offsetY: -0.5, width: 1.24, height: 0.98, tiltX: -0.05, tiltY: 0.05 },
+  { pHold: 0.71, offsetX: 0.7, offsetY: 0.5, width: 0.94, height: 0.74, tiltX: -0.05, tiltY: -0.05 },
+  { pHold: 0.84, offsetX: -0.7, offsetY: -0.5, width: 1.3, height: 0.51, tiltX: -0.05, tiltY: 0.05 },
 ];
 
 

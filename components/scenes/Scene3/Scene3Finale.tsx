@@ -51,10 +51,6 @@ export function Scene3Finale({ progressRef }: Props) {
           </article>
         ))}
         <Link href="/cases" className={styles.invitation} aria-label="Смотреть все работы">
-          <p className={styles.invitationDescription}>
-            Полный каталог — больше кейсов, форматов и задач.
-          </p>
-          <p className={styles.invitationMeta}>12 проектов · 5 направлений</p>
           <div className={styles.invitationCta}>
             <h3 className={styles.invitationTitle}>Все работы</h3>
             <span className={styles.invitationArrow} aria-hidden="true">
