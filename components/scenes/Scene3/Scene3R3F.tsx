@@ -25,30 +25,34 @@ const PARALLAX_LERP = 0.1;
 // M9 — финальный сбор. На p=0.85..0.88 — пауза, затем стяжка частиц + reverse dolly камеры.
 const COLLECT_START_PROGRESS = 0.88;
 
-const CARD_APPROACH_FRACTION = 0.33;
-const CARD_DEPART_FRACTION = 0.67;
-const CARD_READ_PROGRESS = 1.5;
-const CARD_PAST_PROGRESS = 4;
-const CARD_FADE_FRACTION = 0.1;
-const CARD_START_SCALE = 0.01;
+// Карточки летят строго вперёд по +Z с постоянной скоростью.
+// pathProgress = CARD_PATH_READING + (p − pHold) · CARD_SPEED (это z-координата).
+const CARD_SPEED = 25;
+const CARD_PATH_BORN = -12; // рождение далеко в перспективе
+const CARD_PATH_VISIBLE = -8; // конец фейд-ина, дальше полная непрозрачность
+const CARD_PATH_READING = 1.5; // зона чтения у камеры
+const CARD_PATH_FADE_OUT = 3; // начало фейд-аута после прохода
+const CARD_PATH_PAST = 4; // ушла окончательно
+const CARD_START_SCALE = 0.1; // x10 от размера частицы при появлении
 const CARD_TEXTURE_SCALE = 768; // px на world-unit для canvas-текстур карточек
 
 type CardConfig = {
-  startProgress: number;
-  endProgress: number;
-  dirX: number;
-  dirZ: number;
+  pHold: number; // p, когда карточка ровно в зоне чтения (z = CARD_PATH_READING)
+  offsetX: number; // горизонтальный сдвиг от центра, постоянный во время полёта
+  offsetY: number; // вертикальный сдвиг от центра, постоянный во время полёта
   width: number;
   height: number;
   tiltX: number;
   tiltY: number;
 };
 
+// Каждая карточка летит прямо к камере из своей точки около центра.
+// Раскладка по 4 квадрантам: ↖ ↘ ↗ ↙ — чтобы не перекрывали друг друга на пролёте.
 const CARDS: CardConfig[] = [
-  { startProgress: 0.40, endProgress: 0.51, dirX: 0.8, dirZ: 1, width: 1.4, height: 1.0, tiltX: -0.05, tiltY: -0.05 },
-  { startProgress: 0.51, endProgress: 0.62, dirX: -0.8, dirZ: 1, width: 1.0, height: 1.4, tiltX: -0.05, tiltY: 0.05 },
-  { startProgress: 0.62, endProgress: 0.73, dirX: 0.25, dirZ: 1, width: 1.2, height: 1.2, tiltX: -0.05, tiltY: -0.05 },
-  { startProgress: 0.73, endProgress: 0.84, dirX: -0.25, dirZ: 1, width: 1.6, height: 0.9, tiltX: -0.05, tiltY: 0.05 },
+  { pHold: 0.52, offsetX: -0.7, offsetY: 0.5, width: 1.4, height: 1.0, tiltX: -0.05, tiltY: -0.05 },
+  { pHold: 0.6, offsetX: 0.7, offsetY: -0.5, width: 1.0, height: 1.4, tiltX: -0.05, tiltY: 0.05 },
+  { pHold: 0.68, offsetX: 0.7, offsetY: 0.5, width: 1.2, height: 1.2, tiltX: -0.05, tiltY: -0.05 },
+  { pHold: 0.76, offsetX: -0.7, offsetY: -0.5, width: 1.6, height: 0.9, tiltX: -0.05, tiltY: 0.05 },
 ];
 
 type CardContent = {
@@ -152,30 +156,43 @@ function collectionMultiplier(p: number): number {
   return 1 - easeInOutCubic(Math.min(1, t));
 }
 
-function cardPathProgressForCardT(cardT: number): number {
-  if (cardT < CARD_APPROACH_FRACTION) {
-    const t = cardT / CARD_APPROACH_FRACTION;
-    return lerp(0, CARD_READ_PROGRESS, easeInOutCubic(t));
+// Карточка летит вдоль своего луча с постоянной скоростью.
+// Возвращает opacity в зависимости от pathProgress (или 0 если вне диапазона).
+function cardOpacityForPath(pathProgress: number): number {
+  if (pathProgress < CARD_PATH_BORN || pathProgress > CARD_PATH_PAST) return 0;
+  if (pathProgress < CARD_PATH_VISIBLE) {
+    return (pathProgress - CARD_PATH_BORN) / (CARD_PATH_VISIBLE - CARD_PATH_BORN);
   }
-  if (cardT < CARD_DEPART_FRACTION) {
-    return CARD_READ_PROGRESS;
+  if (pathProgress > CARD_PATH_FADE_OUT) {
+    return (CARD_PATH_PAST - pathProgress) / (CARD_PATH_PAST - CARD_PATH_FADE_OUT);
   }
-  const t = (cardT - CARD_DEPART_FRACTION) / (1 - CARD_DEPART_FRACTION);
-  return lerp(CARD_READ_PROGRESS, CARD_PAST_PROGRESS, easeInOutCubic(t));
-}
-
-function cardOpacityForCardT(cardT: number): number {
-  if (cardT < CARD_FADE_FRACTION) return cardT / CARD_FADE_FRACTION;
-  if (cardT > 1 - CARD_FADE_FRACTION) return (1 - cardT) / CARD_FADE_FRACTION;
   return 1;
 }
 
-function cardScaleForCardT(cardT: number): number {
-  if (cardT < CARD_APPROACH_FRACTION) {
-    const t = cardT / CARD_APPROACH_FRACTION;
-    return lerp(CARD_START_SCALE, 1, easeInOutCubic(t));
-  }
-  return 1;
+// Все карточки появляются на p=0.3 коротким фейдом (окно 0.30..0.35) в далёкой
+// перспективе. До этого экран — частицы и фейдящаяся CSS-точка.
+function cardSceneEntryGate(p: number): number {
+  if (p < 0.3) return 0;
+  if (p > 0.35) return 1;
+  return easeInOutCubic((p - 0.3) / 0.05);
+}
+
+// Scale карточки: маленькая при появлении (x10 от частицы), вырастает до 1 в зоне чтения.
+function cardScaleForP(p: number, pHold: number): number {
+  const tStart = 0.3;
+  if (p <= tStart) return CARD_START_SCALE;
+  if (p >= pHold) return 1;
+  const t = (p - tStart) / (pHold - tStart);
+  return lerp(CARD_START_SCALE, 1, easeInOutCubic(t));
+}
+
+// Lateral-progress: 0 при появлении (p=0.3) → 1 в момент чтения (p=pHold).
+// Карточка рождается в центре и плавно расходится к своему квадранту.
+function cardLateralProgress(p: number, pHold: number): number {
+  const tStart = 0.3;
+  if (p <= tStart) return 0;
+  if (p >= pHold) return 1;
+  return easeInOutCubic((p - tStart) / (pHold - tStart));
 }
 
 function createCircleTexture(): THREE.CanvasTexture | null {
@@ -371,20 +388,23 @@ export function Scene3R3F({ progressRef }: Props) {
     (pointsRef.current.material as THREE.PointsMaterial).opacity = inScene;
     (linesRef.current.material as THREE.LineBasicMaterial).opacity = inScene;
 
+    const cardSceneEntry = cardSceneEntryGate(p);
     for (let i = 0; i < CARDS.length; i++) {
       const card = CARDS[i];
       const ref = cardRefs.current[i];
       if (!ref) continue;
       const material = ref.material as THREE.MeshBasicMaterial;
-      const active = p >= card.startProgress && p <= card.endProgress;
-      if (active) {
-        const cardT = (p - card.startProgress) / (card.endProgress - card.startProgress);
-        const pathProgress = cardPathProgressForCardT(cardT);
-        ref.position.set(card.dirX * pathProgress, 0, card.dirZ * pathProgress);
-        ref.scale.setScalar(cardScaleForCardT(cardT));
-        material.opacity = cardOpacityForCardT(cardT);
-      } else {
+      if (!inScene || cardSceneEntry === 0) {
         material.opacity = 0;
+        continue;
+      }
+      const z = CARD_PATH_READING + (p - card.pHold) * CARD_SPEED;
+      const opacity = cardOpacityForPath(z) * cardSceneEntry;
+      material.opacity = opacity;
+      if (opacity > 0) {
+        const lateral = cardLateralProgress(p, card.pHold);
+        ref.position.set(card.offsetX * lateral, card.offsetY * lateral, z);
+        ref.scale.setScalar(cardScaleForP(p, card.pHold));
       }
     }
 
@@ -503,7 +523,7 @@ export function Scene3R3F({ progressRef }: Props) {
       </lineSegments>
       {CARDS.map((card, i) => (
         <mesh
-          key={`${card.startProgress}-${card.dirX}`}
+          key={`${card.pHold}-${card.offsetX}-${card.offsetY}`}
           ref={(el) => {
             cardRefs.current[i] = el;
           }}
