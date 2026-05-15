@@ -43,7 +43,7 @@ export function Scene3() {
   return (
     <section ref={sectionRef} className={styles.scene3} data-scene="scene3">
       <div className={styles.sticky}>
-        <Scene3Finale />
+        <Scene3Finale progressRef={progressRef} />
       </div>
       <r3fTunnel.In>
         <Scene3R3F progressRef={progressRef} />

@@ -49,12 +49,14 @@ type CardConfig = {
 
 // Каждая карточка летит прямо к камере из своей точки около центра.
 // Раскладка по 4 квадрантам: ↖ ↘ ↗ ↙ — чтобы не перекрывали друг друга на пролёте.
-// В финале (M9) карточки анимируются на свои grid-позиции независимо от quadrant.
+// Размер (w × h) посчитан так, чтобы в момент pHold карточка занимала ровно ту же
+// долю экрана, что её grid-area в финальной сетке (для baseline-viewport 1920×1080,
+// FOV=95°, камера на cam_z(pHold)). Формула: world_dim = screen_fraction × 2·d·tan(FOV/2)·AR.
 const CARDS: CardConfig[] = [
-  { pHold: 0.52, offsetX: -0.7, offsetY: 0.5, width: 1.4, height: 1.0, tiltX: -0.05, tiltY: -0.05 },
-  { pHold: 0.6, offsetX: 0.7, offsetY: -0.5, width: 1.0, height: 1.4, tiltX: -0.05, tiltY: 0.05 },
-  { pHold: 0.68, offsetX: 0.7, offsetY: 0.5, width: 1.2, height: 1.2, tiltX: -0.05, tiltY: -0.05 },
-  { pHold: 0.76, offsetX: -0.7, offsetY: -0.5, width: 1.6, height: 0.9, tiltX: -0.05, tiltY: 0.05 },
+  { pHold: 0.45, offsetX: -0.7, offsetY: 0.5, width: 1.29, height: 0.9, tiltX: -0.05, tiltY: -0.05 },
+  { pHold: 0.58, offsetX: 0.7, offsetY: -0.5, width: 0.84, height: 0.94, tiltX: -0.05, tiltY: 0.05 },
+  { pHold: 0.71, offsetX: 0.7, offsetY: 0.5, width: 1.43, height: 0.79, tiltX: -0.05, tiltY: -0.05 },
+  { pHold: 0.84, offsetX: -0.7, offsetY: -0.5, width: 0.97, height: 0.65, tiltX: -0.05, tiltY: 0.05 },
 ];
 
 
@@ -369,11 +371,16 @@ export function Scene3R3F({ progressRef }: Props) {
       const material = ref.material as THREE.MeshBasicMaterial;
       if (!inScene || cardSceneEntry === 0) {
         material.opacity = 0;
+        ref.visible = false;
         continue;
       }
       const z = CARD_PATH_READING + (p - card.pHold) * CARD_SPEED;
       const opacity = cardOpacityForPath(z) * cardSceneEntry;
       material.opacity = opacity;
+      // visible=false снимает меш с рендера, когда он невидим. Без этого
+      // замороженная (после fade-out) плоскость карточки даёт артефакт,
+      // когда камера в M9 уезжает назад и проходит через её z-позицию.
+      ref.visible = opacity > 0;
       if (opacity > 0) {
         const lateral = cardLateralProgress(p, card.pHold);
         ref.position.set(card.offsetX * lateral, card.offsetY * lateral, z);
