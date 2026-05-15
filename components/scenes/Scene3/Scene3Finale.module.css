@@ -156,7 +156,7 @@
 }
 
 .invitationTitle {
-  font-size: 1.75rem;
+  font-size: 1.25rem;
   font-weight: 600;
   line-height: 1;
   margin: 0;
@@ -169,9 +169,12 @@
   font-weight: 300;
   line-height: 1;
   color: #fafafa;
+  /* Компенсация позиции глифа «→» в системном шрифте для совпадения
+     с визуальным центром uppercase-текста. */
+  transform: translateY(-4px);
   transition: transform 0.3s ease;
 }
 
 .invitation:hover .invitationArrow {
-  transform: translate(8px, 0);
+  transform: translate(8px, -4px);
 }
